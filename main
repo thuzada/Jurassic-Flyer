@@ -1,0 +1,157 @@
+import pygame
+import random
+import sys
+
+# Inicialização do Pygame
+pygame.init()
+
+# Configurações da tela
+WIDTH, HEIGHT = 400, 600
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Jurassic Flyer")
+
+# Cores
+WHITE = (255, 255, 255)
+
+# Carregar imagens
+BIRD_IMG = pygame.image.load('assets/9083189-removebg-preview.png')
+PIPE_IMG = pygame.image.load('assets/d7da8fba-20be-43e7-a8a6-c61e5ae525de-removebg-preview.png')
+BG_IMG = pygame.image.load('assets/x5ng_lpkv_201030.jpg')
+BASE_IMG = pygame.image.load('assets/1255-removebg-preview.png')
+
+# Constantes do jogo
+GRAVITY = 0.25
+BIRD_JUMP = -5
+PIPE_GAP = 150
+PIPE_VEL = 5
+BASE_Y = HEIGHT - 100
+
+# Classe do Pássaro
+class Bird:
+    def __init__(self):
+        self.x = 50
+        self.y = HEIGHT // 2
+        self.vel = 0
+        self.image = BIRD_IMG
+        self.rect = self.image.get_rect(center=(self.x, self.y))
+        self.tilt = 0
+        self.tick_count = 0
+
+    def update(self):
+        self.tick_count += 1
+        self.vel += GRAVITY
+        self.y += self.vel
+        self.rect.centery = self.y
+
+        if self.vel < 0:
+            self.tilt = max(self.tilt - 3, -30)
+        else:
+            self.tilt = min(self.tilt + 3, 30)
+
+    def jump(self):
+        self.vel = BIRD_JUMP
+        self.tick_count = 0
+
+    def draw(self, win):
+        rotated_image = pygame.transform.rotate(self.image, self.tilt)
+        new_rect = rotated_image.get_rect(center=self.rect.center)
+        win.blit(rotated_image, new_rect.topleft)
+
+# Classe do Cano
+class Pipe:
+    def __init__(self, x):
+        self.x = x
+        self.height = random.randint(50, 400)
+        self.top = self.height - PIPE_IMG.get_height()
+        self.bottom = self.height + PIPE_GAP
+        self.PIPE_TOP = pygame.transform.flip(PIPE_IMG, False, True)
+        self.PIPE_BOTTOM = PIPE_IMG
+
+    def move(self):
+        self.x -= PIPE_VEL
+
+    def draw(self, win):
+        win.blit(self.PIPE_TOP, (self.x, self.top))
+        win.blit(self.PIPE_BOTTOM, (self.x, self.bottom))
+
+    def collide(self, bird):
+        bird_mask = pygame.mask.from_surface(bird.image)
+        top_mask = pygame.mask.from_surface(self.PIPE_TOP)
+        bottom_mask = pygame.mask.from_surface(self.PIPE_BOTTOM)
+
+        top_offset = (self.x - bird.x, self.top - round(bird.y))
+        bottom_offset = (self.x - bird.x, self.bottom - round(bird.y))
+
+        b_point = bird_mask.overlap(bottom_mask, bottom_offset)
+        t_point = bird_mask.overlap(top_mask, top_offset)
+
+        if t_point or b_point:
+            return True
+
+        return False
+
+# Função principal do jogo
+def main():
+    clock = pygame.time.Clock()
+    bird = Bird()
+    pipes = [Pipe(500)]
+    base_x = 0
+    score = 0
+    font = pygame.font.SysFont(None, 40)
+
+    run = True
+    while run:
+        clock.tick(30)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    bird.jump()
+
+        bird.update()
+
+        # Movimentação do chão
+        base_x -= PIPE_VEL
+        if base_x <= -WIDTH:
+            base_x = 0
+
+        # Adicionar e remover canos
+        if pipes[-1].x < WIDTH - 200:
+            pipes.append(new_pipe())
+        if pipes[0].x < -PIPE_IMG.get_width():
+            pipes.pop(0)
+            score += 1
+
+        for pipe in pipes:
+            pipe.move()
+            if pipe.collide(bird):
+                run = False
+
+        # Verificar colisão com o chão
+        if bird.y + bird.image.get_height() >= BASE_Y or bird.y < 0:
+            run = False
+
+        draw_window(WIN, bird, pipes, base_x, score, font)
+
+    pygame.quit()
+    sys.exit()
+
+def new_pipe():
+    return Pipe(WIDTH)
+
+def draw_window(win, bird, pipes, base_x, score, font):
+    win.blit(BG_IMG, (0, 0))
+    for pipe in pipes:
+        pipe.draw(win)
+    win.blit(BASE_IMG, (base_x, BASE_Y))
+    bird.draw(win)
+
+    score_text = font.render(f"Score: {score}", True, WHITE)
+    win.blit(score_text, (10, 10))
+
+    pygame.display.update()
+
+if __name__ == "__main__":
+    main()
